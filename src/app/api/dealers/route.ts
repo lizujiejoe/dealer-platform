@@ -174,21 +174,39 @@ export async function POST(request: NextRequest) {
       let inserted = 0;
       for (const row of rows) {
         // 规范化 owner_name（去掉末尾的"(Ye Zhu)"）
-        const ownerName = row.owner_name?.replace(/\(Ye Zhu\)$/, '').trim() || '';
+        const ownerName = (row.owner_name || '').replace(/\(Ye Zhu\)$/, '').trim();
+
+        // 兼容新旧两种 CSV 格式
+        const placeId = row.place_id || row['Place Id'] || null;
+        const name = row.name || row['Name'] || '';
+        const description = row.description || row['Categories'] || '';
+        const reviews = parseInt(row.reviews || row['Review Count']) || 0;
+        const rating = parseFloat(row.rating || row['Average Rating']) || 0;
+        const website = row.website || row['Website'] || row['Google Maps URL'] || '';
+        const phone = row.phone || row['Phone'] || row['Phones'] || '';
+        
+        // 过滤逻辑：如果没有电话号码（无法使用 WhatsApp），则直接跳过这条数据
+        if (!phone || phone.trim() === '') {
+          continue;
+        }
+
+        const featuredImage = row.featured_image || row['Featured Image'] || '';
+        const mainCategory = row.main_category || row['Categories'] || '';
+        const address = row.address || row['Fulladdress'] || '';
 
         insert.run({
-          place_id: row.place_id || null,
-          name: row.name || '',
-          description: row.description || '',
-          reviews: parseInt(row.reviews) || 0,
-          rating: parseFloat(row.rating) || 0,
-          website: row.website || '',
-          phone: row.phone || '',
+          place_id: placeId,
+          name: name,
+          description: description,
+          reviews: reviews,
+          rating: rating,
+          website: website,
+          phone: phone,
           owner_name: ownerName,
-          featured_image: row.featured_image || '',
-          main_category: row.main_category || '',
-          address: row.address || '',
-          city: extractCity(row.address || ''),
+          featured_image: featuredImage,
+          main_category: mainCategory,
+          address: address,
+          city: extractCity(address),
           raw_data: JSON.stringify(row),
         });
         inserted++;
