@@ -57,9 +57,10 @@ export default function StaffDashboard() {
       const picked = templates[Math.floor(Math.random() * templates.length)];
       url += `?text=${encodeURIComponent(picked.content)}`;
     }
-
-    window.open(url, '_blank');
-
+    // 使用固定的窗口名称（如 'whatsapp_web_window'），
+    // 这样每次点击都会在同一个标签页中刷新 WhatsApp Web，
+    // 而不是打开无数个新标签页，从而完美解决被挤下线或提示“在其他窗口打开”的问题。
+    window.open(url, 'whatsapp_web_window');
     // 自动将状态更新为“已联系”
     if (dealer.status === 'pending') {
       updateStatus(dealer.assignment_id, 'contacted');
