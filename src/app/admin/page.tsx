@@ -27,8 +27,9 @@ export default function AdminDashboard() {
   const [countNum, setCountNum] = useState('');
   const [countCity, setCountCity] = useState('');
 
-  // 数据总览过滤
+  // 数据总览过滤与勾选
   const [filterStatus, setFilterStatus] = useState('');
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
   // 话术管理
   const [templates, setTemplates] = useState<any[]>([]);
@@ -57,6 +58,7 @@ export default function AdminDashboard() {
       setCities(dealersData.cities || []);
       setDealers(dealersData.dealers || []);
       setTotalDealers(dealersData.total || 0);
+      setSelectedIds([]); // 刷新数据时清空勾选
 
       // 同步拉取话术
       const tmplRes = await fetch('/api/templates', { cache: 'no-store' });
@@ -219,6 +221,31 @@ export default function AdminDashboard() {
       fetchData();
     } else {
       showToast('更新失败', 'err');
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    if (!confirm(`警告：确定要彻底删除选中的 ${selectedIds.length} 条车商数据吗？\n该操作不可恢复，且会同步删除关联的员工跟进记录！`)) {
+      return;
+    }
+    
+    try {
+      const res = await fetch('/api/dealers', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: selectedIds }),
+      });
+      const data = await res.json();
+      
+      if (res.ok) {
+        showToast(`✅ 成功删除 ${data.deleted} 条数据`);
+        fetchData();
+      } else {
+        showToast(`删除失败: ${data.error}`, 'err');
+      }
+    } catch (err) {
+      showToast('删除异常', 'err');
     }
   };
 
@@ -446,7 +473,18 @@ export default function AdminDashboard() {
 
         <div className="glass-panel" style={{ gridColumn: '1 / -1' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
-            <h3 style={{ margin: 0 }}>数据总览（显示前 50 条，共 {totalDealers} 条）</h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+              <h3 style={{ margin: 0 }}>数据总览（显示前 50 条，共 {totalDealers} 条）</h3>
+              {selectedIds.length > 0 && (
+                <button 
+                  onClick={handleBulkDelete}
+                  className="btn" 
+                  style={{ background: '#b91c1c', padding: '6px 12px', fontSize: '0.85em' }}
+                >
+                  批量删除 ({selectedIds.length})
+                </button>
+              )}
+            </div>
             <select className="input-field" style={{ width: 'auto' }} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
               <option value="">全部状态</option>
               <option value="unassigned">未分配</option>
@@ -460,6 +498,20 @@ export default function AdminDashboard() {
             <table>
               <thead>
                 <tr>
+                  <th style={{ width: 40, textAlign: 'center' }}>
+                    <input 
+                      type="checkbox" 
+                      style={{ accentColor: 'var(--primary)', cursor: 'pointer' }}
+                      checked={dealers.length > 0 && selectedIds.length === Math.min(dealers.length, 50)}
+                      onChange={e => {
+                        if (e.target.checked) {
+                          setSelectedIds(dealers.slice(0, 50).map(d => d.id));
+                        } else {
+                          setSelectedIds([]);
+                        }
+                      }}
+                    />
+                  </th>
                   <th>状态</th>
                   <th>分配给</th>
                   <th>车商名称</th>
@@ -472,9 +524,23 @@ export default function AdminDashboard() {
               </thead>
               <tbody>
                 {dealers.length === 0 ? (
-                  <tr><td colSpan={8} style={{ textAlign: 'center', opacity: 0.5, padding: 20 }}>暂无数据</td></tr>
+                  <tr><td colSpan={9} style={{ textAlign: 'center', opacity: 0.5, padding: 20 }}>暂无数据</td></tr>
                 ) : dealers.slice(0, 50).map(d => (
                   <tr key={d.id}>
+                    <td style={{ textAlign: 'center' }}>
+                      <input 
+                        type="checkbox"
+                        style={{ accentColor: 'var(--primary)', cursor: 'pointer' }}
+                        checked={selectedIds.includes(d.id)}
+                        onChange={e => {
+                          if (e.target.checked) {
+                            setSelectedIds(prev => [...prev, d.id]);
+                          } else {
+                            setSelectedIds(prev => prev.filter(id => id !== d.id));
+                          }
+                        }}
+                      />
+                    </td>
                     <td>
                       {!d.status ? <span className="status-badge" style={{ background: '#334155', color: '#94a3b8' }}>未分配</span> : 
                        <span className={`status-badge status-${d.status}`}>{d.status}</span>}

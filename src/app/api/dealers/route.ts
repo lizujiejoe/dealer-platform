@@ -60,7 +60,10 @@ export async function GET(request: NextRequest) {
       query += ' ORDER BY d.reviews DESC LIMIT ? OFFSET ?';
       args.push(pageSize, offset);
 
+      console.log('Admin Query:', query);
+      console.log('Admin Args:', args);
       const dealers = db.prepare(query).all(...args) as any[];
+      console.log('Admin Dealers Length:', dealers.length);
 
       // 获取所有城市列表
       const cities = db.prepare("SELECT DISTINCT city FROM dealers WHERE city IS NOT NULL AND city != '' ORDER BY city").all() as any[];
@@ -201,3 +204,37 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: '服务器内部错误' }, { status: 500 });
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  const cookieStore = await cookies();
+  const role = cookieStore.get('role')?.value;
+  if (role !== 'admin') {
+    return NextResponse.json({ error: '权限不足' }, { status: 403 });
+  }
+
+  try {
+    const { ids } = await request.json();
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return NextResponse.json({ error: '参数错误，必须提供有效的 IDs 数组' }, { status: 400 });
+    }
+
+    const placeholders = ids.map(() => '?').join(',');
+    
+    const deleteTransaction = db.transaction((dealerIds: number[]) => {
+      // 1. 删除关联的 assignments，避免外键约束报错
+      db.prepare(`DELETE FROM assignments WHERE dealer_id IN (${placeholders})`).run(...dealerIds);
+      
+      // 2. 删除 dealers
+      const info = db.prepare(`DELETE FROM dealers WHERE id IN (${placeholders})`).run(...dealerIds);
+      return info.changes;
+    });
+
+    const deletedCount = deleteTransaction(ids);
+
+    return NextResponse.json({ success: true, deleted: deletedCount });
+  } catch (error) {
+    console.error('DELETE /api/dealers error:', error);
+    return NextResponse.json({ error: '删除失败，服务器内部错误' }, { status: 500 });
+  }
+}
+
