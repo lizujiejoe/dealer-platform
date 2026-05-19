@@ -10,7 +10,7 @@ cd /opt/dealer
 
 # 1. 从 GitHub 拉取最新代码
 echo "正在从 Git 仓库拉取最新代码..."
-git pull
+git pull origin master
 
 # 2. 更新依赖
 echo "正在更新 NPM 依赖..."
