@@ -190,6 +190,16 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
+        // 电话号码严格去重逻辑
+        const existingByPhone = db.prepare('SELECT place_id FROM dealers WHERE phone = ?').get(phone) as any;
+        if (existingByPhone) {
+          // 如果库里已经有这个电话，只有当 place_id 完全一致时才放行（让它走底层的 UPSERT 去更新数据）。
+          // 如果 place_id 不同，或者当前数据没有 place_id，我们都跳过，防止产生相同电话的多条记录。
+          if (!placeId || existingByPhone.place_id !== placeId) {
+            continue;
+          }
+        }
+
         const featuredImage = row.featured_image || row['Featured Image'] || '';
         const mainCategory = row.main_category || row['Categories'] || '';
         const address = row.address || row['Fulladdress'] || '';
