@@ -77,6 +77,9 @@ export async function GET(request: NextRequest) {
       });
     } else {
       // 员工只能看被分配的
+      const staffStatus = searchParams.get('status');
+      const sort = searchParams.get('sort') || 'updated_at_desc'; // updated_at_desc | updated_at_asc
+
       let query = `
         SELECT d.*, a.status, a.notes, a.id as assignment_id, a.updated_at as assignment_updated_at
         FROM assignments a
@@ -90,13 +93,22 @@ export async function GET(request: NextRequest) {
         args.push(`%${city}%`);
       }
 
+      if (staffStatus && staffStatus !== 'all') {
+        query += ' AND a.status = ?';
+        args.push(staffStatus);
+      }
+
       const countQuery = query.replace(
         'SELECT d.*, a.status, a.notes, a.id as assignment_id, a.updated_at as assignment_updated_at',
         'SELECT COUNT(*) as total'
       );
       const total = (db.prepare(countQuery).get(...args) as any)?.total || 0;
 
-      query += ' ORDER BY d.reviews DESC LIMIT ? OFFSET ?';
+      // 排序：按 assignment 更新时间
+      const orderClause = sort === 'updated_at_asc'
+        ? 'ORDER BY a.updated_at ASC'
+        : 'ORDER BY a.updated_at DESC';
+      query += ` ${orderClause} LIMIT ? OFFSET ?`;
       args.push(pageSize, offset);
 
       const dealers = db.prepare(query).all(...args) as any[];
