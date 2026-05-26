@@ -93,25 +93,51 @@ export default function StaffDashboard() {
     }
   };
 
+  /** 兼容所有环境的剪贴板复制：优先用 Clipboard API，降级用 execCommand */
+  const copyToClipboard = async (text: string): Promise<boolean> => {
+    // 方法一：Clipboard API（需要 HTTPS 或 localhost）
+    if (navigator.clipboard && window.isSecureContext) {
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch {
+        // 权限被拒绝等情况，继续降级
+      }
+    }
+    // 方法二：execCommand 降级（兼容 HTTP、旧版浏览器、安卓 WebView 等）
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      // 不影响页面布局，不触发滚动
+      textarea.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0';
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(textarea);
+      return ok;
+    } catch {
+      return false;
+    }
+  };
+
   const handleCopyPhone = async (dealer: any) => {
     if (!dealer.phone) { showToast('该客户没有电话号码', 'err'); return; }
 
     const cleanPhone = dealer.phone.replace(/[^\d+]/g, '');
-    try {
-      await navigator.clipboard.writeText(cleanPhone);
+    const success = await copyToClipboard(cleanPhone);
+
+    if (success) {
       // 标记复制成功
       setCopiedMap(prev => ({ ...prev, [dealer.assignment_id]: true }));
       setTimeout(() => setCopiedMap(prev => ({ ...prev, [dealer.assignment_id]: false })), 1800);
-
       showToast(`已复制 ${cleanPhone}`);
-
       // 若仍是「待联系」，自动更新为「已联系」
       if (dealer.status === 'pending') {
         updateStatus(dealer.assignment_id, 'contacted');
       }
-    } catch {
-      // 浏览器不支持 Clipboard API（如 HTTP 非 localhost 环境）—— 降级提示
-      showToast('复制失败，请手动复制号码', 'err');
+    } else {
+      showToast('复制失败，请手动长按号码复制', 'err');
     }
   };
 
